@@ -3,6 +3,7 @@ import math
 from typing import Any, Dict, Optional
 
 from ray.serve._private.constants import CONTROL_LOOP_INTERVAL_S, SERVE_LOGGER_NAME
+from ray.serve._private.autoscaling_state import AutoscalingContext
 from ray.serve.config import AutoscalingConfig
 from ray.util.annotations import PublicAPI
 
@@ -82,15 +83,8 @@ def _calculate_desired_num_replicas(
 
 
 @PublicAPI(stability="alpha")
-def replica_queue_length_autoscaling_policy(
-    curr_target_num_replicas: int,
-    total_num_requests: int,
-    num_running_replicas: int,
-    config: Optional[AutoscalingConfig],
-    capacity_adjusted_min_replicas: int,
-    capacity_adjusted_max_replicas: int,
-    policy_state: Dict[str, Any],
-) -> int:
+def replica_queue_length_autoscaling_policy(ctx: AutoscalingContext) -> int:
+    
     """The default autoscaling policy based on basic thresholds for scaling.
     There is a minimum threshold for the average queue length in the cluster
     to scale up and a maximum threshold to scale down. Each period, a 'scale
@@ -100,6 +94,14 @@ def replica_queue_length_autoscaling_policy(
     `get_decision_num_replicas` is called once every CONTROL_LOOP_PERIOD_S
     seconds.
     """
+
+    curr_target_num_replicas: int = ctx.target_num_replicas
+    total_num_requests: int = ctx.total_num_requests
+    num_running_replicas: int = ctx.current_num_replicas
+    config: Optional[AutoscalingConfig] = ctx.config
+    capacity_adjusted_min_replicas: int = ctx.capacity_adjusted_min_replicas
+    capacity_adjusted_max_replicas: int = ctx.capacity_adjusted_max_replicas
+    policy_state: Dict[str, Any] = ctx.policy_state
     decision_counter = policy_state.get("decision_counter", 0)
     if num_running_replicas == 0:
         # When 0 replicas and queries are queued, scale up the replicas
