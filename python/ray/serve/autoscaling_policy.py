@@ -84,7 +84,7 @@ def _calculate_desired_num_replicas(
 
 @PublicAPI(stability="alpha")
 def replica_queue_length_autoscaling_policy(ctx: AutoscalingContext) -> int:
-    
+
     """The default autoscaling policy based on basic thresholds for scaling.
     There is a minimum threshold for the average queue length in the cluster
     to scale up and a maximum threshold to scale down. Each period, a 'scale

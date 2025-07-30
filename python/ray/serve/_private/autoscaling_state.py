@@ -81,27 +81,27 @@ class ReplicaMetricReport:
 @dataclass
 class AutoscalingContext:
     """Rich context provided to custom autoscaling policies."""
-    
+
     # Deployment information
     deployment_id: DeploymentID
     deployment_name: str
     app_name: Optional[str]
-    
+
     # Current state
     current_num_replicas: int
     target_num_replicas: int
     running_replicas: List[ReplicaID]
-    
+
     # Built-in metrics
     total_num_requests: float
     requests_per_replica: Dict[ReplicaID, float]
     queued_requests: float
-    
+
     # Custom metrics (aggregated over look_back_period using user defined agg function)
     aggregated_metrics: Dict[str, Dict[ReplicaID, float]]
     # Custom metrics (vector over look_back_period)
     raw_metrics: Dict[str, Dict[ReplicaID, List[float]]]
-    
+
     # Capacity and bounds
     min_replicas: int
     max_replicas: int
@@ -312,17 +312,19 @@ class AutoscalingState:
         `_skip_bound_check` is True, then the bounds are not applied.
         """
 
-        self._autoscaling_context.target_num_replicas=curr_target_num_replicas
-        self._autoscaling_context.total_num_requests=self.get_total_num_requests()
-        self._autoscaling_context.running_replicas=len(self._running_replicas)
-        self._autoscaling_context.config=self._config
-        self._autoscaling_context.capacity_adjusted_min_replicas=self.get_num_replicas_lower_bound(),
-        self._autoscaling_context.capacity_adjusted_max_replicas=self.get_num_replicas_upper_bound(),
-        self._autoscaling_context.policy_state=self._policy_state
-
-        decision_num_replicas = self._policy(
-            self._autoscaling_context
+        self._autoscaling_context.target_num_replicas = curr_target_num_replicas
+        self._autoscaling_context.total_num_requests = self.get_total_num_requests()
+        self._autoscaling_context.running_replicas = len(self._running_replicas)
+        self._autoscaling_context.config = self._config
+        self._autoscaling_context.capacity_adjusted_min_replicas = (
+            self.get_num_replicas_lower_bound(),
         )
+        self._autoscaling_context.capacity_adjusted_max_replicas = (
+            self.get_num_replicas_upper_bound(),
+        )
+        self._autoscaling_context.policy_state = self._policy_state
+
+        decision_num_replicas = self._policy(self._autoscaling_context)
 
         if _skip_bound_check:
             return decision_num_replicas
