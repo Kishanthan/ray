@@ -85,6 +85,15 @@ class DependencySetManager:
                 name=depset.name,
                 output=depset.output,
             )
+        elif depset.operation == "expand":
+            self.expand(
+                depsets=depset.depsets,
+                requirements=depset.requirements,
+                constraints=depset.constraints,
+                args=DEFAULT_UV_FLAGS.copy(),
+                name=depset.name,
+                output=depset.output,
+            )
         click.echo(f"Dependency set {depset.name} compiled successfully")
 
     def compile(
@@ -120,6 +129,31 @@ class DependencySetManager:
         self.compile(
             constraints=[source_depset.output],
             requirements=requirements,
+            args=args,
+            name=name,
+            output=output,
+        )
+
+    def expand(
+        self,
+        depsets: List[str],
+        requirements: List[str],
+        constraints: List[str],
+        args: List[str],
+        name: str,
+        output: str = None,
+    ):
+        """Expand a dependency set."""
+        # handle both depsets and requirements
+        depset_req_list = []
+        for depset_name in depsets:
+            depset = self.get_depset(depset_name)
+            depset_req_list.extend(depset.requirements)
+        if requirements:
+            depset_req_list.extend(requirements)
+        self.compile(
+            constraints=constraints,
+            requirements=depset_req_list,
             args=args,
             name=name,
             output=output,
