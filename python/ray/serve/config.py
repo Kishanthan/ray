@@ -2,7 +2,7 @@ import json
 import logging
 import warnings
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union, Tuple
 
 from ray import cloudpickle
 from ray._common.pydantic_compat import (
@@ -159,6 +159,12 @@ class RequestRouterConfig(BaseModel):
         return cloudpickle.loads(self._serialized_request_router_cls)
 
 
+class AutoscalingPolicyConfig:
+    name: Union[str, Callable] = PrivateAttr(default=DEFAULT_AUTOSCALING_POLICY)
+    timeout_s: float = 5.0
+    dry_run: bool = False
+
+
 @PublicAPI(stability="stable")
 class AutoscalingConfig(BaseModel):
     """Config for the Serve Autoscaler."""
@@ -171,7 +177,7 @@ class AutoscalingConfig(BaseModel):
     initial_replicas: Optional[NonNegativeInt] = None
     max_replicas: PositiveInt = 1
 
-    target_ongoing_requests: PositiveFloat = DEFAULT_TARGET_ONGOING_REQUESTS
+    target_ongoing_requests: Optional[PositiveFloat] = DEFAULT_TARGET_ONGOING_REQUESTS
 
     metrics_interval_s: PositiveFloat = Field(
         default=10.0, description="How often to scrape for metrics."
@@ -215,8 +221,14 @@ class AutoscalingConfig(BaseModel):
     # Cloudpickled policy definition.
     _serialized_policy_def: bytes = PrivateAttr(default=b"")
 
+    agg_function: str = "mean"  # how to aggregate metrics within look_back_period_s
+    policy_config: Optional[
+        AutoscalingPolicyConfig
+    ] = None  # this policy is deployment scoped
+    prometheus_custom_metrics: Optional[List[Tuple[str, str]]] = None
+
     # Custom autoscaling config. Defaults to the request-based autoscaler.
-    _policy: Union[str, Callable] = PrivateAttr(default=DEFAULT_AUTOSCALING_POLICY)
+    _policy: Union[str, Callable] = policy_config.name
 
     @validator("max_replicas", always=True)
     def replicas_settings_valid(cls, max_replicas, values):
