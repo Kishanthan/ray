@@ -1,6 +1,6 @@
 import logging
 import math
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 
 from ray.serve._private.constants import CONTROL_LOOP_INTERVAL_S, SERVE_LOGGER_NAME
 from ray.serve._private.autoscaling_state import AutoscalingContext
@@ -83,7 +83,9 @@ def _calculate_desired_num_replicas(
 
 
 @PublicAPI(stability="alpha")
-def replica_queue_length_autoscaling_policy(ctx: AutoscalingContext) -> int:
+def replica_queue_length_autoscaling_policy(
+    ctx: AutoscalingContext,
+) -> Tuple[int, Dict[str, Any]]:
 
     """The default autoscaling policy based on basic thresholds for scaling.
     There is a minimum threshold for the average queue length in the cluster
@@ -155,7 +157,7 @@ def replica_queue_length_autoscaling_policy(ctx: AutoscalingContext) -> int:
         decision_counter = 0
 
     policy_state["decision_counter"] = decision_counter
-    return decision_num_replicas
+    return decision_num_replicas, policy_state
 
 
 default_autoscaling_policy = replica_queue_length_autoscaling_policy

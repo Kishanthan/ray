@@ -139,7 +139,6 @@ class AutoscalingState:
         self._running_replicas: List[ReplicaID] = []
         self._target_capacity: Optional[float] = None
         self._target_capacity_direction: Optional[TargetCapacityDirection] = None
-        self._autoscaling_context: AutoscalingContext = None
 
     def register(self, info: DeploymentInfo, curr_target_num_replicas: int) -> int:
         """Registers an autoscaling deployment's info.
@@ -312,19 +311,17 @@ class AutoscalingState:
         `_skip_bound_check` is True, then the bounds are not applied.
         """
 
-        self._autoscaling_context.target_num_replicas = curr_target_num_replicas
-        self._autoscaling_context.total_num_requests = self.get_total_num_requests()
-        self._autoscaling_context.running_replicas = len(self._running_replicas)
-        self._autoscaling_context.config = self._config
-        self._autoscaling_context.capacity_adjusted_min_replicas = (
-            self.get_num_replicas_lower_bound(),
+        autoscaling_context: AutoscalingContext = AutoscalingContext(
+            target_num_replicas=curr_target_num_replicas,
+            total_num_requests=self.get_total_num_requests(),
+            running_replicas=len(self._running_replicas),
+            config=self._config,
+            capacity_adjusted_min_replicas=self.get_num_replicas_lower_bound(),
+            capacity_adjusted_max_replicas=self.get_num_replicas_upper_bound(),
+            policy_state=self._policy_state,
         )
-        self._autoscaling_context.capacity_adjusted_max_replicas = (
-            self.get_num_replicas_upper_bound(),
-        )
-        self._autoscaling_context.policy_state = self._policy_state
 
-        decision_num_replicas = self._policy(self._autoscaling_context)
+        decision_num_replicas, self._policy_state = self._policy(autoscaling_context)
 
         if _skip_bound_check:
             return decision_num_replicas
