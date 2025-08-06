@@ -644,6 +644,14 @@ def build(build_python, build_java, build_cpp):
     if setup_spec.build_type == BuildType.TSAN:
         bazel_flags.append("--config=tsan")
 
+
+
+    bazel_flags.append("--jobs=12")
+    bazel_flags.append("--local_ram_resources=HOST_RAM*.5")
+    bazel_flags.append("--local_cpu_resources=4")
+    bazel_flags.append("--disk_cache=/shared/kishan/bazel-cache")
+
+
     bazel_bin = _find_bazel_bin()
     subprocess.check_call(
         [bazel_bin]

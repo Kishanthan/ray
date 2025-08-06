@@ -10,14 +10,14 @@ from ray.util.collective import types
 
 logger = logging.getLogger(__name__)
 
-try:
-    from ray.util.collective.collective_group.nccl_collective_group import NCCLGroup
+# try:
+#     from ray.util.collective.collective_group.nccl_collective_group import NCCLGroup
 
-    _NCCL_AVAILABLE = True
-    _LOG_NCCL_WARNING = False
-except ImportError:
-    _NCCL_AVAILABLE = False
-    _LOG_NCCL_WARNING = True
+#     _NCCL_AVAILABLE = True
+#     _LOG_NCCL_WARNING = False
+# except ImportError:
+#     _NCCL_AVAILABLE = False
+#     _LOG_NCCL_WARNING = True
 
 try:
     from ray.util.collective.collective_group.gloo_collective_group import GLOOGroup
@@ -36,6 +36,14 @@ try:
 except ImportError:
     _TORCH_DISTRIBUTED_AVAILABLE = False
 
+try:
+    from ray.util.collective.collective_group.hccl_collective_group import HCCLGroup
+    _HCCL_AVAILABLE = True
+except ImportError:
+    _HCCL_AVAILABLE = False
+    _NCCL_AVAILABLE = False
+    _LOG_NCCL_WARNING = True
+
 
 def nccl_available():
     global _LOG_NCCL_WARNING
@@ -48,6 +56,8 @@ def nccl_available():
         _LOG_NCCL_WARNING = False
     return _NCCL_AVAILABLE
 
+def hccl_available():
+    return _HCCL_AVAILABLE
 
 def gloo_available():
     return _GLOO_AVAILABLE
@@ -98,6 +108,9 @@ class GroupManager(object):
                 "Creating torch.distributed GLOO group: '{}'...".format(group_name)
             )
             g = TorchGLOOGroup(world_size, rank, group_name)
+        elif backend == types.Backend.HCCL:
+            logger.info("Creating HCCL group: '{}'...".format(group_name))
+            g = HCCLGroup(world_size, rank, group_name)
         else:
             raise RuntimeError(f"Unexpected backend: {backend}")
 

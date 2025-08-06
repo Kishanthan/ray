@@ -635,7 +635,9 @@ class SerializationContext:
             obj_id is not None
         ), "`obj_id` is required, and it is the key to retrieve corresponding tensors from the GPU object store."
         serialized_val, tensors = self._serialize_and_retrieve_tensors(value)
-        if tensors:
+        print(f"%%%%%%%%%%%%%%%%%%% serializing and string 1")
+        if tensors is not None:
+            print(f"%%%%%%%%%%%%%%%%%%% serializing and string 2")
             obj_id = obj_id.decode("ascii")
             worker = ray._private.worker.global_worker
             gpu_object_manager = worker.gpu_object_manager

@@ -1,5 +1,8 @@
-load("@rules_foreign_cc//foreign_cc:defs.bzl", "make")
+########################################
+# redis/BUILD.bazel – use system-installed redis
+########################################
 
+# Only the Windows binaries are real source files in the archive.
 exports_files(
     [
         "redis-server.exe",
@@ -8,73 +11,41 @@ exports_files(
     visibility = ["//visibility:public"],
 )
 
-filegroup(
-    name = "all_srcs",
-    srcs = glob(
-        include = ["**"],
-        exclude = ["*.bazel"],
-    ),
-)
-
-
-make(
-    name = "redis",
-    args = [
-        "BUILD_TLS=yes",
-        "-s",
-    ],
-    copts = [
-        "-DLUA_USE_MKSTEMP",
-        "-Wno-pragmas",
-        "-Wno-empty-body",
-        "-fPIC",
-    ],
-    visibility = ["//visibility:public"],
-    lib_source = ":all_srcs",
-    deps = [
-        "@openssl//:openssl",
-    ],
-    out_binaries = [
-        "redis-server",
-        "redis-cli"
-    ]
-)
-
-genrule_cmd = select({
-    "@platforms//os:osx": """
-        unset CC LDFLAGS CXX CXXFLAGS
-        tmpdir="redis.tmp"
-        p=$(location Makefile)
-        cp -p -L -R -- "$${p%/*}" "$${tmpdir}"
-        chmod +x "$${tmpdir}"/deps/jemalloc/configure
-        parallel="$$(getconf _NPROCESSORS_ONLN || echo 1)"
-        make -s -C "$${tmpdir}" -j"$${parallel}" V=0 CFLAGS="$${CFLAGS-} -DLUA_USE_MKSTEMP -Wno-pragmas -Wno-empty-body"
-        mv "$${tmpdir}"/src/redis-server $(location redis-server)
-        chmod +x $(location redis-server)
-        mv "$${tmpdir}"/src/redis-cli $(location redis-cli)
-        chmod +x $(location redis-cli)
-        rm -r -f -- "$${tmpdir}"
-    """,
-    "//conditions:default": """
-        cp $(RULEDIR)/redis/bin/redis-server $(location redis-server)
-        cp $(RULEDIR)/redis/bin/redis-cli $(location redis-cli)
-    """
-})
-
-genrule_srcs = select({
-    "@platforms//os:osx": glob(["**"]),
-    "//conditions:default": [":redis"],
-})
-
-
+# Linux / macOS: copy the redis binaries already on the host into Bazel’s
+# output tree.  Tagged "local" so it never runs on a remote worker that might
+# not have Redis installed.
 genrule(
     name = "bin",
-    srcs = genrule_srcs,
+    srcs = [],
     outs = [
         "redis-server",
         "redis-cli",
     ],
-    cmd = genrule_cmd,
+    cmd = select({
+        "@platforms//os:osx": """
+            set -euo pipefail
+            SRV=$$(command -v redis-server)
+            CLI=$$(command -v redis-cli)
+            [ -x "$$SRV" ] || { echo "redis-server not found on PATH"; exit 1; }
+            [ -x "$$CLI" ] || { echo "redis-cli not found on PATH";   exit 1; }
+            cp "$$SRV" "$(location redis-server)"
+            cp "$$CLI" "$(location redis-cli)"
+            chmod +x "$(location redis-server)" "$(location redis-cli)"
+        """,
+        # Default covers Linux and any other non-macOS Unix-like host.
+        "//conditions:default": """
+            set -euo pipefail
+            SRV=$$(command -v redis-server)
+            CLI=$$(command -v redis-cli)
+            [ -x "$$SRV" ] || { echo "redis-server not found on PATH"; exit 1; }
+            [ -x "$$CLI" ] || { echo "redis-cli not found on PATH";   exit 1; }
+            cp "$$SRV" "$(location redis-server)"
+            cp "$$CLI" "$(location redis-cli)"
+            chmod +x "$(location redis-server)" "$(location redis-cli)"
+        """,
+    }),
     visibility = ["//visibility:public"],
     tags = ["local"],
 )
+
+
