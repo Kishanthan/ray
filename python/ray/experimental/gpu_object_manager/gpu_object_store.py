@@ -111,9 +111,6 @@ class GPUObjectStore:
         self.primary_gpu_object_ids: Set[str] = set()
 
     def has_gpu_object(self, obj_id: str) -> bool:
-
-        print(f"available objs : {self.gpu_object_store}")
-
         return obj_id in self.gpu_object_store
 
     def get_gpu_object(self, obj_id: str) -> Optional[List["torch.Tensor"]]:
@@ -133,9 +130,6 @@ class GPUObjectStore:
             gpu_object: A list of tensors representing the GPU object.
             is_primary: Whether the GPU object is the primary copy.
         """
-
-        print(f"adding obj : {obj_id}")
-
         if is_primary:
             self.primary_gpu_object_ids.add(obj_id)
         self.gpu_object_store[obj_id] = gpu_object

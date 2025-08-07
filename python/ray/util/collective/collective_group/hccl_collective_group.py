@@ -1,6 +1,5 @@
 from typing import List, Optional
 import os
-import logging
 import torch
 
 from ray.util.collective.collective_group.base_collective_group import BaseGroup
@@ -8,7 +7,6 @@ from ray.util.collective.types import (
     AllReduceOptions,
     BarrierOptions,
     Backend,
-    ReduceOp,
     ReduceOptions,
     BroadcastOptions,
     AllGatherOptions,
@@ -18,34 +16,30 @@ from ray.util.collective.types import (
 )
 
 
-logger = logging.getLogger(__name__)
-
 class HCCLGroup(BaseGroup):
     def __init__(self, world_size, rank, group_name):
         """Init an HCCL collective group."""
-        os.environ['ASCEND_RT_VISIBLE_DEVICES'] = '0,1'
-        import torch
+        os.environ["ASCEND_RT_VISIBLE_DEVICES"] = "0,1"
         import torch.distributed as dist
         import torch_npu
-        os.environ['MASTER_ADDR'] = '127.0.0.1'
-        os.environ['MASTER_PORT'] = '29500'
-        os.environ['HCCL_WHITELIST_DISABLE'] = '1'
+
+        os.environ["MASTER_ADDR"] = "127.0.0.1"
+        os.environ["MASTER_PORT"] = "29500"
+        os.environ["HCCL_WHITELIST_DISABLE"] = "1"
         torch_npu.npu.set_device(rank)
-        dist.init_process_group(backend='hccl', rank=rank, world_size=world_size)
+        dist.init_process_group(backend="hccl", rank=rank, world_size=world_size)
 
         super().__init__(world_size, rank, group_name)
 
     def destroy_group(self):
-        import torch
         import torch.distributed as dist
         import torch_npu
-        dist.destroy_process_group()
 
+        dist.destroy_process_group()
 
     @classmethod
     def backend(cls):
         return Backend.HCCL
-
 
     def _check_tensor_input(self, tensor: List["torch.Tensor"]) -> "torch.Tensor":
         """ray.util.collective wraps tensor arguments in a list. Check for a
@@ -122,7 +116,6 @@ class HCCLGroup(BaseGroup):
         # dist.broadcast(tensor, src=broadcast_options.root_rank)
         pass
 
-
     def reducescatter(
         self,
         output_tensor: List["torch.Tensor"],
@@ -149,20 +142,19 @@ class HCCLGroup(BaseGroup):
         pass
 
     def send(self, tensor: List["torch.Tensor"], send_options: SendOptions) -> None:
-        # tensor = self._check_tensor_input(tensor)
-        import torch
+        tensor = self._check_tensor_input(tensor)
         import torch.distributed as dist
         import torch_npu
+
         dist.barrier()
         dist.send(tensor, dst=send_options.dst_rank)
         dist.barrier()
 
     def recv(self, tensor: List["torch.Tensor"], recv_options: RecvOptions) -> None:
-        # tensor = self._check_tensor_input(tensor)
-        import torch
+        tensor = self._check_tensor_input(tensor)
         import torch.distributed as dist
         import torch_npu
+
         dist.barrier()
         dist.recv(tensor, src=recv_options.src_rank)
         dist.barrier()
-

@@ -4390,7 +4390,6 @@ cdef class CoreWorker:
             # TODO(kevin85421): We should consider unifying both serialization logic in the future
             # when GPU objects are more stable. We currently separate the logic to ensure
             # GPU object-related logic does not affect the normal object serialization logic.
-            print("Transports Used is ########################## : ", <int>c_tensor_transport)
             if <int>c_tensor_transport != <int>TENSOR_TRANSPORT_OBJECT_STORE:
                 # `output` contains tensors. We need to retrieve these tensors from `output`
                 # and store them in the GPUObjectManager.
