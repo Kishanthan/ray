@@ -1,12 +1,14 @@
 from typing import List, Optional
 import os
 import torch
+import torch.distributed as dist
 
 from ray.util.collective.collective_group.base_collective_group import BaseGroup
 from ray.util.collective.types import (
     AllReduceOptions,
     BarrierOptions,
     Backend,
+    ReduceOp,
     ReduceOptions,
     BroadcastOptions,
     AllGatherOptions,
@@ -15,14 +17,19 @@ from ray.util.collective.types import (
     RecvOptions,
 )
 
+TORCH_REDUCE_OP_MAP = {
+    ReduceOp.SUM: dist.ReduceOp.SUM,
+    ReduceOp.PRODUCT: dist.ReduceOp.PRODUCT,
+    ReduceOp.MIN: dist.ReduceOp.MIN,
+    ReduceOp.MAX: dist.ReduceOp.MAX,
+}
+
 
 class HCCLGroup(BaseGroup):
     def __init__(self, world_size, rank, group_name):
         """Init an HCCL collective group."""
         os.environ["ASCEND_RT_VISIBLE_DEVICES"] = "0,1"
-        import torch.distributed as dist
         import torch_npu
-
         os.environ["MASTER_ADDR"] = "127.0.0.1"
         os.environ["MASTER_PORT"] = "29500"
         os.environ["HCCL_WHITELIST_DISABLE"] = "1"
@@ -32,9 +39,6 @@ class HCCLGroup(BaseGroup):
         super().__init__(world_size, rank, group_name)
 
     def destroy_group(self):
-        import torch.distributed as dist
-        import torch_npu
-
         dist.destroy_process_group()
 
     @classmethod
@@ -73,28 +77,25 @@ class HCCLGroup(BaseGroup):
         tensor: List["torch.Tensor"],
         allreduce_options: Optional[AllReduceOptions] = None,
     ) -> None:
-        # if allreduce_options is None:
-        #     allreduce_options = AllReduceOptions()
-        # tensor = self._check_tensor_input(tensor)
-        # torch_reduce_op = TORCH_REDUCE_OP_MAP[allreduce_options.reduceOp]
-        # dist.all_reduce(tensor, op=torch_reduce_op)
-        pass
+        if allreduce_options is None:
+            allreduce_options = AllReduceOptions()
+        tensor = self._check_tensor_input(tensor)
+        torch_reduce_op = TORCH_REDUCE_OP_MAP[allreduce_options.reduceOp]
+        dist.all_reduce(tensor, op=torch_reduce_op)
 
     def barrier(self, barrier_options=BarrierOptions()) -> None:
-        # dist.barrier()
-        pass
+        dist.barrier()
 
     def reduce(
         self,
         tensor: List["torch.Tensor"],
         reduce_options: Optional[ReduceOptions] = None,
     ) -> None:
-        # if reduce_options is None:
-        #     reduce_options = ReduceOptions()
-        # tensor = self._check_tensor_input(tensor)
-        # torch_reduce_op = TORCH_REDUCE_OP_MAP[reduce_options.reduceOp]
-        # dist.reduce(tensor, dst=reduce_options.root_rank, op=torch_reduce_op)
-        pass
+        if reduce_options is None:
+            reduce_options = ReduceOptions()
+        tensor = self._check_tensor_input(tensor)
+        torch_reduce_op = TORCH_REDUCE_OP_MAP[reduce_options.reduceOp]
+        dist.reduce(tensor, dst=reduce_options.root_rank, op=torch_reduce_op)
 
     def allgather(
         self,
@@ -102,19 +103,17 @@ class HCCLGroup(BaseGroup):
         tensor: List["torch.Tensor"],
         allgather_options: Optional[AllGatherOptions] = None,
     ) -> None:
-        # if allgather_options is None:
-        #     allgather_options = AllGatherOptions()
-        # tensor_list = self._check_tensor_list_input(tensor_list)
-        # tensor = self._check_tensor_input(tensor)
-        # dist.all_gather(tensor_list, tensor)
-        pass
+        if allgather_options is None:
+            allgather_options = AllGatherOptions()
+        tensor_list = self._check_tensor_list_input(tensor_list)
+        tensor = self._check_tensor_input(tensor)
+        dist.all_gather(tensor_list, tensor)
 
     def broadcast(
         self, tensor: List["torch.Tensor"], broadcast_options=BroadcastOptions()
     ) -> None:
-        # tensor = self._check_tensor_input(tensor)
-        # dist.broadcast(tensor, src=broadcast_options.root_rank)
-        pass
+        tensor = self._check_tensor_input(tensor)
+        dist.broadcast(tensor, src=broadcast_options.root_rank)
 
     def reducescatter(
         self,
@@ -122,39 +121,32 @@ class HCCLGroup(BaseGroup):
         tensor_list: List[List["torch.Tensor"]],
         reducescatter_options: Optional[ReduceScatterOptions] = None,
     ) -> None:
-        # if reducescatter_options is None:
-        #     reducescatter_options = ReduceScatterOptions()
-        # tensor_list = self._check_tensor_list_input(tensor_list)
-        # output_tensor = self._check_tensor_input(output_tensor)
-        # if output_tensor.shape != tensor_list[self._rank].shape:
-        #     raise ValueError(
-        #         "Output tensor has wrong shape {output_tensor.shape}, expected {tensor_list[self._rank].shape}"
-        #     )
-        # torch_reduce_op = TORCH_REDUCE_OP_MAP[reducescatter_options.reduceOp]
+        if reducescatter_options is None:
+            reducescatter_options = ReduceScatterOptions()
+        tensor_list = self._check_tensor_list_input(tensor_list)
+        output_tensor = self._check_tensor_input(output_tensor)
+        if output_tensor.shape != tensor_list[self._rank].shape:
+            raise ValueError(
+                "Output tensor has wrong shape {output_tensor.shape}, expected {tensor_list[self._rank].shape}"
+            )
+        torch_reduce_op = TORCH_REDUCE_OP_MAP[reducescatter_options.reduceOp]
 
-        # # torch.distributed gloo doesn't support reducescatter. Implement a
-        # # simple version using allreduce.
-        # for tensor in tensor_list:
-        #     dist.all_reduce(tensor, op=torch_reduce_op)
+        # torch.distributed gloo doesn't support reducescatter. Implement a
+        # simple version using allreduce.
+        for tensor in tensor_list:
+            dist.all_reduce(tensor, op=torch_reduce_op)
 
-        # if output_tensor.data_ptr() != tensor_list[self._rank].data_ptr():
-        #     output_tensor.copy_(tensor_list[self._rank])
-        pass
+        if output_tensor.data_ptr() != tensor_list[self._rank].data_ptr():
+            output_tensor.copy_(tensor_list[self._rank])
 
     def send(self, tensor: List["torch.Tensor"], send_options: SendOptions) -> None:
         tensor = self._check_tensor_input(tensor)
-        import torch.distributed as dist
-        import torch_npu
-
         dist.barrier()
         dist.send(tensor, dst=send_options.dst_rank)
         dist.barrier()
 
     def recv(self, tensor: List["torch.Tensor"], recv_options: RecvOptions) -> None:
         tensor = self._check_tensor_input(tensor)
-        import torch.distributed as dist
-        import torch_npu
-
         dist.barrier()
         dist.recv(tensor, src=recv_options.src_rank)
         dist.barrier()
